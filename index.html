@@ -1,1 +1,1049 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>闻记 · 音频转写与问答工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Noto+Sans+SC:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f4eee1; --panel:#ece4d2; --ink:#211b13; --ink2:#6f6450;
+  --line:#d9cfb8; --line2:#c6b998;
+  --accent:#bf4514; --accent-deep:#9a380f; --ok:#3e6b52; --hl:#f3dd9a;
+  --serif:'Noto Serif SC','Songti SC','SimSun',serif;
+  --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:400;-webkit-font-smoothing:antialiased}
+/* 纸张噪点 */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;opacity:.4;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .04 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+::selection{background:var(--hl)}
+button{font-family:inherit}
+[hidden]{display:none!important}
+
+/* ===== 刊头 ===== */
+header.top{max-width:1400px;margin:0 auto;padding:26px clamp(16px,3vw,40px) 20px;
+  display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  border-bottom:3px double var(--ink)}
+.brand{display:flex;align-items:baseline;gap:14px}
+.brand .logo{font:900 30px/1 var(--serif);letter-spacing:6px}
+.brand .logo i{font-style:normal;color:var(--accent)}
+.brand .slogan{font:400 10px var(--mono);letter-spacing:2.5px;color:var(--ink2);text-transform:uppercase}
+.head-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px}
+.state-dot{width:8px;height:8px;border-radius:50%;background:#a99e87;flex:none;transition:.3s}
+.state-dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(62,107,82,.18)}
+#stateText{color:var(--ink2)}
+.hr-div{width:1px;height:16px;background:var(--line2)}
+.head-right label{color:var(--ink2)}
+select{appearance:none;-webkit-appearance:none;font:400 12px var(--sans);color:var(--ink);
+  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236f6450'/%3E%3C/svg%3E") no-repeat right 8px center;
+  border:1px solid var(--line2);border-radius:2px;padding:5px 24px 5px 10px;cursor:pointer;outline:none}
+select:focus{border-color:var(--ink)}
+.badge{font:600 10px var(--mono);letter-spacing:1px;padding:4px 8px;border:1px solid var(--line2);border-radius:2px;color:var(--ink2)}
+.badge.gpu{border-color:var(--ok);color:var(--ok)}
+
+/* ===== 主体 ===== */
+main{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:36px clamp(16px,3vw,40px) 70px;
+  display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:clamp(26px,3vw,52px);align-items:start}
+@media(max-width:1080px){main{grid-template-columns:1fr}}
+
+/* 小节标签 */
+.sec-tag{display:flex;align-items:baseline;gap:10px;margin-bottom:18px}
+.sec-tag .no{font:600 12px var(--mono);color:var(--accent)}
+.sec-tag .name{font:600 17px var(--serif)}
+.sec-tag .en{font:400 10px var(--mono);letter-spacing:3px;color:var(--ink2);text-transform:uppercase}
+.sec-tag .rule{flex:1;height:1px;background:var(--line);align-self:center}
+.mini{font:400 12px var(--sans);color:var(--ink2);background:none;border:1px solid var(--line2);
+  border-radius:2px;padding:5px 12px;cursor:pointer;transition:.15s}
+.mini:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ===== 空态 ===== */
+#welcome h1{font:900 clamp(32px,4.4vw,54px)/1.32 var(--serif);letter-spacing:.02em;margin-bottom:20px}
+#welcome h1 em{font-style:normal;color:var(--accent);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='6' viewBox='0 0 28 6'%3E%3Cpath d='M0 4 Q7 0 14 4 T28 4' fill='none' stroke='%23bf4514' stroke-width='1.6'/%3E%3C/svg%3E") repeat-x bottom;padding-bottom:8px}
+#welcome .lede{font-size:15px;line-height:2;color:var(--ink2);max-width:560px;margin-bottom:34px}
+#dropzone{border:1.5px dashed var(--line2);border-radius:4px;padding:48px 24px;text-align:center;
+  cursor:pointer;transition:.2s;background:rgba(255,252,244,.4)}
+#dropzone:hover,#dropzone.over{border-color:var(--accent);background:rgba(191,69,20,.05)}
+#dropzone .dz-icon{width:42px;height:42px;color:var(--accent);margin-bottom:14px}
+#dropzone .dz-main{font:600 17px var(--serif);margin-bottom:8px}
+#dropzone .dz-sub{font-size:12px;color:var(--ink2);letter-spacing:.5px}
+#dropzone .dz-btns{margin-top:22px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{font:500 14px var(--sans);padding:11px 24px;border:1px solid var(--ink);background:var(--ink);
+  color:var(--paper);border-radius:3px;cursor:pointer;transition:.18s;display:inline-flex;align-items:center;gap:9px}
+.btn:hover{background:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line2)}
+.btn.ghost:hover{color:var(--accent);border-color:var(--accent);background:transparent;transform:translateY(-1px)}
+.btn svg{width:16px;height:16px}
+/* 录音态 */
+#dropzone.rec{border-color:var(--accent);cursor:default}
+.rec-live{display:flex;align-items:center;justify-content:center;gap:16px}
+.rec-dot{width:12px;height:12px;border-radius:50%;background:var(--accent);animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+#recTime{font:600 22px var(--mono);letter-spacing:2px}
+
+/* ===== 工作室（音频区）===== */
+.studio{border:1px solid var(--line2);border-radius:4px;background:#faf5e9;padding:18px 20px 10px;margin-bottom:30px}
+.studio-row{display:flex;align-items:center;gap:18px}
+.playbtn{width:56px;height:56px;flex:none;border-radius:50%;border:1.5px solid var(--ink);
+  background:transparent;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.18s}
+.playbtn svg{width:22px;height:22px}
+.playbtn:hover{border-color:var(--accent);color:var(--accent)}
+.playbtn.playing{background:var(--accent);border-color:var(--accent);color:#fff}
+.meta{flex:1;min-width:0}
+#fname{font:600 14px var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc{font:400 14px var(--mono);color:var(--ink2);margin-top:5px}
+.tc .sep{margin:0 7px;opacity:.5}
+#wave{display:block;width:100%;height:96px;margin-top:14px;cursor:crosshair}
+
+/* ===== 转写稿 ===== */
+.t-line{display:flex;gap:16px;padding:10px 12px;border-bottom:1px dashed var(--line);
+  align-items:baseline;opacity:0;transform:translateY(8px);transition:opacity .5s,transform .5s,background .2s}
+.t-line.in{opacity:1;transform:none}
+.t-line:hover{background:rgba(255,252,244,.7)}
+.t-line.cur{background:var(--hl);box-shadow:inset 3px 0 0 var(--accent)}
+.t-time{font:600 12px var(--mono);color:var(--accent-deep);background:none;border:none;
+  cursor:pointer;min-width:46px;text-align:left;padding:0;flex:none}
+.t-time:hover{text-decoration:underline}
+.t-text{font-size:15px;line-height:1.95;flex:1}
+.t-text mark{background:var(--hl);color:inherit;padding:1px 0;border-bottom:1.5px solid var(--accent)}
+
+/* 转写过程面板 */
+#procBox{border:1px solid var(--line2);border-radius:4px;padding:26px 24px;background:#faf5e9}
+.proc-head{display:flex;align-items:center;gap:16px}
+.bars{display:flex;gap:4px;align-items:flex-end;height:26px;flex:none}
+.bars i{width:4px;background:var(--accent);animation:eq 1s ease-in-out infinite}
+.bars i:nth-child(2){animation-delay:.15s}.bars i:nth-child(3){animation-delay:.3s}
+.bars i:nth-child(4){animation-delay:.45s}.bars i:nth-child(5){animation-delay:.6s}
+@keyframes eq{0%,100%{height:6px}50%{height:26px}}
+#procTitle{font:600 16px var(--serif)}
+#procSub{font-size:12px;color:var(--ink2);margin-top:4px}
+#procTime{font:600 15px var(--mono);color:var(--accent);margin-left:auto}
+.pbar{height:4px;background:var(--line);margin-top:16px;border-radius:2px;overflow:hidden}
+.pbar b{display:block;height:100%;background:var(--accent);width:0%;transition:width .3s}
+.proc-foot{font-size:11.5px;color:var(--ink2);margin-top:12px;line-height:1.8}
+
+/* ===== 右栏 ===== */
+.panel{border:1px solid var(--line2);border-radius:4px;background:var(--panel);padding:24px;margin-bottom:26px}
+#wf-item{padding:14px 0;border-bottom:1px dashed var(--line)}
+#wf-item:last-of-type{border-bottom:none}
+.wf-no{font:600 12px var(--mono);color:var(--accent);margin-right:12px}
+.wf-name{font:600 15px var(--serif)}
+.wf-desc{font-size:12.5px;color:var(--ink2);margin-top:5px;line-height:1.8;padding-left:30px}
+.privacy{margin-top:20px;padding:14px 16px;border-left:3px solid var(--ok);background:rgba(62,107,82,.06);
+  font-size:12px;line-height:1.9;color:#4a6353}
+
+/* 摘要 */
+.s-item{display:flex;gap:12px;padding:9px 0}
+.s-item i{width:6px;height:6px;background:var(--accent);margin-top:11px;flex:none}
+.s-item p{font-size:13.5px;line-height:1.9}
+/* 关键词 */
+.kw-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 22px}
+.kw{border:1px solid var(--line2);background:transparent;border-radius:2px;padding:6px 12px;
+  font:400 13px var(--serif);color:var(--ink);cursor:pointer;transition:.15s}
+.kw small{font:400 11px var(--mono);color:var(--ink2);margin-left:6px}
+.kw:hover{border-color:var(--accent)}
+.kw.on{background:var(--hl);border-color:var(--accent-deep)}
+.kw-hint{font-size:11px;color:var(--ink2);margin-bottom:8px}
+/* 统计 */
+.stats{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line2)}
+.stat{padding:14px 4px 12px;border-bottom:1px solid var(--line2)}
+.stat:nth-child(odd){border-right:1px solid var(--line2);padding-right:16px}
+.stat:nth-child(even){padding-left:16px}
+.stat b{display:block;font:600 21px var(--mono);letter-spacing:-.5px}
+.stat span{font-size:11.5px;color:var(--ink2)}
+
+/* ===== 问答 ===== */
+#chat{max-height:400px;overflow-y:auto;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.msg{margin-bottom:20px;font-size:14px;line-height:1.9}
+.msg.user{text-align:right}
+.msg.user .tag{border-color:var(--ink2);color:var(--ink2)}
+.msg .tag{display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;
+  font:600 12px var(--serif);border:1px solid var(--ink);border-radius:2px;margin:0 10px;vertical-align:1px;flex:none}
+.msg.bot .tag{background:var(--accent);border-color:var(--accent);color:#fff}
+.msg.user p{display:inline;color:#40382b}
+.msg.bot .body{display:inline}
+.refs{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.refs-label{font-size:11px;color:var(--ink2)}
+.ref{font:400 12px var(--mono);color:var(--accent-deep);background:none;border:none;
+  border-bottom:1px solid var(--accent);cursor:pointer;padding:0 1px 1px}
+.ref:hover{color:var(--accent)}
+.dots{display:inline-flex;gap:5px;align-items:center;height:22px}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--ink2);animation:blink 1s infinite}
+.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{50%{opacity:.15}}
+#chips{display:flex;flex-direction:column;align-items:flex-start;gap:7px;margin:6px 0 18px}
+.qchip{border:none;background:none;font:400 13px var(--sans);color:var(--ink2);cursor:pointer;
+  border-bottom:1px dashed var(--line2);padding:2px 0;text-align:left;transition:.15s}
+.qchip::before{content:'— ';color:var(--accent)}
+.qchip:hover{color:var(--accent);border-color:var(--accent)}
+.ask{display:flex;border:1.5px solid var(--ink);border-radius:3px;background:#fbf7ec;overflow:hidden}
+.ask input{flex:1;border:none;background:transparent;padding:13px 14px;font:400 14px var(--sans);
+  color:var(--ink);outline:none;min-width:0}
+.ask input::placeholder{color:#a89b82}
+.ask button{width:54px;border:none;background:var(--ink);color:var(--paper);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.18s;flex:none}
+.ask button:hover{background:var(--accent)}
+.ask button svg{width:18px;height:18px}
+
+/* toast */
+#toasts{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:99;
+  display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:var(--paper);font-size:13px;padding:11px 22px;border-radius:3px;
+  box-shadow:0 6px 24px rgba(33,27,19,.25);animation:tin .3s;max-width:88vw}
+@keyframes tin{from{opacity:0;transform:translateY(12px)}}
+
+footer{border-top:1px solid var(--line);text-align:center;padding:22px;font-size:11.5px;color:var(--ink2);letter-spacing:1px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="logo">闻<i>·</i>记</span>
+    <span class="slogan">Wenji — Audio Transcript &amp; Inquiry</span>
+  </div>
+  <div class="head-right">
+    <span class="state-dot" id="stateDot"></span><span id="stateText">模型待命</span>
+    <span class="hr-div"></span>
+    <label>模型</label>
+    <select id="modelSel">
+      <option value="tiny">tiny · 迅速（约 50MB）</option>
+      <option value="base" selected>base · 均衡（约 90MB）</option>
+      <option value="small">small · 精细（约 250MB）</option>
+    </select>
+    <label>语言</label>
+    <select id="langSel">
+      <option value="zh" selected>中文</option>
+      <option value="en">English</option>
+      <option value="auto">自动检测</option>
+    </select>
+    <span class="badge" id="devBadge">检测中</span>
+  </div>
+</header>
+
+<main>
+  <!-- 左栏 -->
+  <section>
+    <!-- 空态 -->
+    <div id="welcome">
+      <h1>把一段声音，<br>变成<em>可以追问</em>的文字。</h1>
+      <p class="lede">上传或录制一段音频，闻记会在你的浏览器里把它逐句转写成文稿，并自动提炼摘要、关键词与要点统计。更重要的是——你可以像问作者一样，直接向这段音频提问。</p>
+      <div id="dropzone">
+        <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+        </svg>
+        <div class="dz-main">把音频文件拖到这里</div>
+        <div class="dz-sub">MP3 / WAV / M4A / OGG / WEBM · 也可以直接用麦克风录一段</div>
+        <div class="dz-btns">
+          <button class="btn" id="pickBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            选择音频文件
+          </button>
+          <button class="btn ghost" id="recBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            开始录音
+          </button>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="audio/*,video/*" hidden>
+    </div>
+
+    <!-- 录音中（覆盖拖放区内容） -->
+    <div id="recBox" hidden>
+      <div id="dropzone" class="rec">
+        <div class="rec-live">
+          <span class="rec-dot"></span>
+          <span id="recTime">0:00</span>
+          <button class="btn" id="stopRecBtn" type="button">停止录音</button>
+        </div>
+        <div class="dz-sub" style="margin-top:16px">正在通过麦克风录音 · 说完请点「停止录音」</div>
+      </div>
+    </div>
+
+    <!-- 音频工作台 -->
+    <div id="studio" hidden>
+      <div class="studio">
+        <div class="studio-row">
+          <button class="playbtn" id="playBtn" title="播放 / 暂停">
+            <svg id="playIco" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pauseIco" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+          </button>
+          <div class="meta">
+            <div id="fname">—</div>
+            <div class="tc"><span id="curTc">0:00</span><span class="sep">/</span><span id="durTc">0:00</span></div>
+          </div>
+          <button class="mini" id="resetBtn" type="button">更换音频</button>
+        </div>
+        <canvas id="wave"></canvas>
+      </div>
+    </div>
+
+    <!-- 转写稿 -->
+    <section id="transcriptSec" hidden>
+      <div class="sec-tag">
+        <span class="no">01</span><span class="name">转写稿</span><span class="en">Transcript</span>
+        <span class="rule"></span>
+        <button class="mini" id="copyBtn" type="button">复制全文</button>
+      </div>
+      <div id="procBox" hidden>
+        <div class="proc-head">
+          <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+          <div>
+            <div id="procTitle">正在解码音频…</div>
+            <div id="procSub">首次运行会自动下载识别模型，之后将直接复用</div>
+          </div>
+          <div id="procTime">0:00</div>
+        </div>
+        <div class="pbar" id="dlWrap" hidden><b id="dlBar"></b></div>
+        <div class="proc-foot" id="procFoot">逐句识别需要一些时间，时长越长等待越久。转写完成后，文字会逐句浮现，点击任意时间码可跳转播放。</div>
+      </div>
+      <div id="transcript"></div>
+    </section>
+  </section>
+
+  <!-- 右栏 -->
+  <aside>
+    <!-- 空态：工作流程 -->
+    <div class="panel" id="workflow">
+      <div class="sec-tag" style="margin-bottom:6px">
+        <span class="no">§</span><span class="name">工作流程</span><span class="en">Workflow</span><span class="rule"></span>
+      </div>
+      <div id="wf-item"><span class="wf-no">01</span><span class="wf-name">上传</span><div class="wf-desc">拖入或选择一段音频，也支持现场录音。</div></div>
+      <div id="wf-item"><span class="wf-no">02</span><span class="wf-name">转写</span><div class="wf-desc">Whisper 语音模型在浏览器内逐句识别，生成带时间戳的文稿。</div></div>
+      <div id="wf-item"><span class="wf-no">03</span><span class="wf-name">洞察</span><div class="wf-desc">自动提炼摘要、高频关键词与语速统计，点击关键词可在稿中定位。</div></div>
+      <div id="wf-item"><span class="wf-no">04</span><span class="wf-name">追问</span><div class="wf-desc">像问作者一样向音频提问，回答附原文出处，可跳转回放。</div></div>
+      <div class="privacy">全程本地运行 —— 识别模型下载到浏览器后，音频解码、转写、分析与问答全部在这台设备上完成，声音与文字不会上传到任何服务器。</div>
+    </div>
+
+    <!-- 关键信息 -->
+    <div class="panel" id="analysis" hidden>
+      <div class="sec-tag" style="margin-bottom:10px">
+        <span class="no">02</span><span class="name">关键信息</span><span class="en">Key Findings</span><span class="rule"></span>
+      </div>
+      <div id="summary"></div>
+      <div class="kw-hint">关键词（点击在文稿中定位）</div>
+      <div class="kw-row" id="kwRow"></div>
+      <div class="stats" id="statsGrid"></div>
+    </div>
+
+    <!-- 问答 -->
+    <div class="panel" id="qa" hidden>
+      <div class="sec-tag" style="margin-bottom:14px">
+        <span class="no">03</span><span class="name">追问</span><span class="en">Ask the Audio</span><span class="rule"></span>
+      </div>
+      <div id="chat"></div>
+      <div id="chips"></div>
+      <div class="ask">
+        <input id="qInput" type="text" placeholder="向这段音频提问，回车发送…" autocomplete="off">
+        <button id="sendBtn" title="发送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h16M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>闻记 WENJI · 本地音频转写与问答 — 声音与文字全程不离开这台设备</footer>
+<div id="toasts"></div>
+<audio id="player" hidden></audio>
+
+<!-- ===== Web Worker 源码 ===== -->
+<script type="text/plain" id="worker-src">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
+env.allowLocalModels = false;
+let asr = null, key = '';
+self.onmessage = async (e) => {
+  const { audio, model, device, dtype, language } = e.data;
+  try {
+    const k = model + '|' + device + '|' + JSON.stringify(dtype);
+    if (!asr || key !== k) {
+      asr = await pipeline('automatic-speech-recognition', model, {
+        device, dtype,
+        progress_callback: (p) => {
+          if (p.status === 'progress' && p.total) {
+            self.postMessage({ type: 'dl', file: p.file, pct: Math.min(100, Math.round(p.progress || 0)) });
+          }
+        }
+      });
+      key = k;
+    }
+    self.postMessage({ type: 'stage', stage: 'transcribing' });
+    const opts = { chunk_length_s: 30, stride_length_s: 5, return_timestamps: true };
+    if (language && language !== 'auto') opts.language = language;
+    const out = await asr(audio, opts);
+    self.postMessage({ type: 'done', text: out.text || '', chunks: out.chunks || [] });
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    if (String(device).includes('webgpu') || (dtype && typeof dtype === 'object')) {
+      self.postMessage({ type: 'fallback' });
+    } else {
+      self.postMessage({ type: 'failed', message: msg });
+    }
+  }
+};
+</script>
+
+<!-- ===== 主逻辑 ===== -->
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const pad = (n) => String(n).padStart(2, '0');
+const fmtT = (s) => {
+  s = Math.max(0, Math.floor(s || 0));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+};
+
+/* ---------- 全局状态 ---------- */
+let state = 'idle';            // idle | decoding | loading | transcribing | ready
+let worker = null;
+let sentences = [];            // {text,start,end}
+let qaIndex = null;            // {docs, df}
+let kws = [];
+let lastStats = null;
+let waveData = null, buckets = null, dpr = Math.max(1, devicePixelRatio || 1);
+let curIdx = -1, lastScroll = 0;
+let busy = false, currentKw = null;
+let procTimer = null, procStart = 0;
+let hasGPU = !!navigator.gpu;
+
+const player = $('player'), waveCanvas = $('wave'), wctx = waveCanvas.getContext('2d');
+const ACCENT = '#bf4514', INKBAR = 'rgba(33,27,19,.34)';
+const MODELS = {
+  tiny:  'onnx-community/whisper-tiny',
+  base:  'onnx-community/whisper-base',
+  small: 'onnx-community/whisper-small',
+};
+
+/* ---------- toast ---------- */
+function toast(msg, ms = 3600) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = '.4s'; setTimeout(() => t.remove(), 400); }, ms);
+}
+
+/* ---------- 设备徽标 ---------- */
+  const b = $('devBadge');
+  if (hasGPU) { b.textContent = 'WebGPU 加速'; b.classList.add('gpu'); }
+  else { b.textContent = 'CPU / WASM'; $('modelSel').value = 'tiny'; }
+})();
+
+/* ---------- Worker 通信 ---------- */
+function ensureWorker() {
+  if (worker) return;
+  const src = $('worker-src').textContent;
+  worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+  worker.onmessage = onWorkerMsg;
+  worker.onerror = (e) => { finishProc(); toast('模型加载出错：' + (e.message || '未知错误')); };
+}
+let pendingAudio = null;
+function onWorkerMsg(e) {
+  const m = e.data;
+  if (m.type === 'dl') {
+    if (state === 'loading') {
+      const pct = Math.max(0, Math.min(100, m.pct));
+      $('dlBar').style.width = pct + '%';
+      $('procTitle').textContent = `正在下载识别模型 ${pct}%`;
+    }
+  } else if (m.type === 'stage') {
+    if (m.stage === 'transcribing') {
+      state = 'transcribing';
+      $('dlWrap').hidden = true;
+      $('procTitle').textContent = '正在转写…';
+      $('procSub').textContent = '模型正在逐句聆听这段音频';
+      startProcTimer();
+    }
+  } else if (m.type === 'done') {
+    finishProc();
+    handleResult(m.text, m.chunks);
+  } else if (m.type === 'fallback') {
+    toast('WebGPU 初始化失败，已自动切换到 CPU 模式（速度较慢）');
+    hasGPU = false; $('devBadge').textContent = 'CPU / WASM'; $('devBadge').classList.remove('gpu');
+    state = 'loading';
+    worker.postMessage({ type: 'run', audio: pendingAudio, model: MODELS[$('modelSel').value],
+      device: 'wasm', dtype: 'q8', language: $('langSel').value });
+  } else if (m.type === 'failed') {
+    finishProc();
+    toast('转写失败：' + m.message);
+    $('procTitle').textContent = '转写失败';
+    $('procSub').textContent = '请检查网络（首次需下载模型）后重试';
+  }
+}
+
+/* ---------- 文件载入与解码 ---------- */
+function handleFile(file) {
+  if (!file) return;
+  const okType = /audio|video/.test(file.type) || /\.(mp3|wav|m4a|ogg|oga|flac|webm|aac|mp4|opus)$/i.test(file.name);
+  if (!okType) { toast('这似乎不是音频文件，换一个试试'); return; }
+  if (state === 'decoding' || state === 'loading' || state === 'transcribing') { toast('正在处理上一段音频，请稍候'); return; }
+  player.src = URL.createObjectURL(file);
+  $('fname').textContent = file.name + ' · ' + (file.size / 1048576).toFixed(1) + ' MB';
+  decodeFile(file);
+}
+async function decodeFile(file) {
+  state = 'decoding';
+  $('welcome').hidden = true; $('recBox').hidden = true;
+  $('studio').hidden = false; $('transcriptSec').hidden = false; $('procBox').hidden = false;
+  $('transcript').innerHTML = '';
+  $('dlWrap').hidden = true; $('dlBar').style.width = '0%';
+  $('procTitle').textContent = '正在解码音频…';
+  $('procSub').textContent = '重采样到 16kHz 单声道，供识别模型使用';
+  startProcTimer();
+  try {
+    const buf = await file.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ab = await ctx.decodeAudioData(buf);
+    ctx.close && ctx.close();
+    // 混合为单声道
+    let mono;
+    if (ab.numberOfChannels > 1) {
+      const a = ab.getChannelData(0), b = ab.getChannelData(1);
+      mono = new Float32Array(a.length);
+      for (let i = 0; i < a.length; i++) mono[i] = (a[i] + b[i]) / 2;
+    } else mono = ab.getChannelData(0).slice();
+    waveData = resample16k(mono, ab.sampleRate);
+    buildBuckets();
+    $('durTc').textContent = fmtT(ab.duration);
+    if (ab.duration > 900) toast('音频较长，转写可能需要数分钟，请耐心等待');
+    transcribeNow();
+  } catch (err) {
+    finishProc();
+    toast('无法解码该音频，请尝试 MP3 / WAV 等常见格式');
+    resetAll();
+  }
+}
+function resample16k(input, srcRate) {
+  if (srcRate === 16000) return input;
+  const ratio = srcRate / 16000, outLen = Math.floor(input.length / ratio);
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio, i0 = Math.floor(pos), fr = pos - i0;
+    const a = input[i0] || 0, b = input[i0 + 1] ?? a;
+    out[i] = a + (b - a) * fr;
+  }
+  return out;
+}
+
+/* ---------- 波形 ---------- */
+function buildBuckets() {
+  const N = 240, size = Math.max(1, Math.floor(waveData.length / N));
+  buckets = new Float32Array(N);
+  let max = 0;
+  for (let i = 0; i < N; i++) {
+    let m = 0;
+    const st = i * size, en = Math.min(waveData.length, st + size);
+    for (let j = st; j < en; j += 2) { const v = Math.abs(waveData[j]); if (v > m) m = v; }
+    buckets[i] = m; if (m > max) max = m;
+  }
+  if (max > 0) for (let i = 0; i < N; i++) buckets[i] /= max;
+}
+function sizeWave() {
+  const r = waveCanvas.getBoundingClientRect();
+  waveCanvas.width = Math.max(1, r.width * dpr);
+  waveCanvas.height = Math.max(1, r.height * dpr);
+}
+function drawWave() {
+  if (!buckets || !waveCanvas.width) return;
+  const W = waveCanvas.width, H = waveCanvas.height, n = buckets.length;
+  const dur = player.duration || 0, cur = player.currentTime || 0;
+  wctx.clearRect(0, 0, W, H);
+  const step = W / n;
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * dur;
+    const h = Math.max(2 * dpr, buckets[i] * H * 0.92);
+    wctx.fillStyle = (t <= cur && cur > 0) ? ACCENT : INKBAR;
+    wctx.fillRect(i * step, (H - h) / 2, Math.max(1, step * 0.6), h);
+  }
+  if (dur) { wctx.fillStyle = '#211b13'; wctx.fillRect((cur / dur) * W - dpr, 0, 2 * dpr, H); }
+}
+waveCanvas.addEventListener('click', (e) => {
+  if (!player.duration) return;
+  const r = waveCanvas.getBoundingClientRect();
+  player.currentTime = ((e.clientX - r.left) / r.width) * player.duration;
+  if (player.paused) togglePlay();
+});
+
+/* ---------- 转写流程 ---------- */
+function transcribeNow() {
+  state = 'loading';
+  $('procTitle').textContent = '正在准备识别模型…';
+  $('dlWrap').hidden = false;
+  ensureWorker();
+  pendingAudio = waveData.slice();
+  worker.postMessage({
+    type: 'run', audio: pendingAudio,
+    model: MODELS[$('modelSel').value],
+    device: hasGPU ? 'webgpu' : 'wasm',
+    dtype: hasGPU ? { encoder_model: 'fp32', decoder_model_merged: 'q4' } : 'q8',
+    language: $('langSel').value,
+  });
+}
+function startProcTimer() {
+  procStart = Date.now();
+  clearInterval(procTimer);
+  procTimer = setInterval(() => { $('procTime').textContent = fmtT((Date.now() - procStart) / 1000); }, 500);
+}
+function finishProc() { clearInterval(procTimer); }
+
+/* ---------- 转写结果 ---------- */
+function handleResult(text, chunks) {
+  if (!text || !text.trim()) { toast('没有识别到语音内容（音频可能是静音的）'); return; }
+  $('stateText').textContent = '模型就绪'; $('stateDot').classList.add('ok');
+  sentences = buildSentences(chunks, player.duration);
+  renderTranscript();
+  analyze();
+  state = 'ready';
+  $('qa').hidden = false; $('workflow').hidden = true;
+  $('analysis').hidden = false;
+  $('qInput').focus();
+  toast('转写完成，文稿与关键信息已生成');
+}
+function buildSentences(chunks, duration) {
+  const list = [];
+  let buf = '', start = null, end = null, cc = 0;
+  const flush = () => {
+    if (!buf.trim()) return;
+    list.push({ text: buf.trim(), start: start ?? 0, end: end ?? duration ?? 0 });
+    buf = ''; start = null; end = null; cc = 0;
+  };
+  for (const c of chunks) {
+    const t = c.text || '';
+    const [s, e] = c.timestamp || [null, null];
+    if (start === null) start = s;
+    if (e != null) end = e; else if (end === null) end = s;
+    buf += t; cc += t.trim().length;
+    if (/[。！？!?]/.test(t) || cc > 90) flush();
+  }
+  flush();
+  // 过长句按逗号切分，时间线性内插
+  const final = [];
+  for (const s of list) {
+    if (s.text.length <= 90) { final.push(s); continue; }
+    const parts = (s.text.match(/[^，,、；;：:]+[，,、；;：:]?/g) || [s.text]).filter(p => p.trim());
+    const span = Math.max(0.01, (s.end ?? 0) - s.start);
+    let prev = s.start;
+    for (const p of parts) {
+      const d = (p.length / s.text.length) * span;
+      final.push({ text: p.trim(), start: prev, end: prev + d });
+      prev += d;
+    }
+  }
+  return final.filter(s => s.text);
+}
+function renderTranscript() {
+  const box = $('transcript');
+  box.innerHTML = '';
+  const step = sentences.length > 40 ? 40 : 90;
+  sentences.forEach((s, i) => {
+    setTimeout(() => {
+      const line = document.createElement('div');
+      line.className = 't-line';
+      const b = document.createElement('button');
+      b.className = 't-time'; b.textContent = fmtT(s.start);
+      b.addEventListener('click', () => seek(s.start));
+      const p = document.createElement('p');
+      p.className = 't-text'; p.textContent = s.text; p.dataset.raw = s.text;
+      line.append(b, p);
+      line.addEventListener('click', (e) => { if (e.target !== b) seek(s.start); });
+      box.appendChild(line);
+      requestAnimationFrame(() => line.classList.add('in'));
+    }, i * step);
+  });
+}
+
+/* ---------- 关键信息提取 ---------- */
+const FILLER = '的了是在我有你不他都这那也就要说和与对于上下来去会把被从很到位个时地得';
+const BLACK = new Set(['我们','你们','他们','自己','这个','那个','什么','怎么','这样','那样','如果','因为','所以','但是','然后','就是','还是','只是','可以','应该','可能','已经','现在','时候','一个','没有','的话','一下','一些','一点','非常','真的','其实','而且','并且','或者','比如','大家','这些','那些','这么','那么','为什么','怎么样','这种','那种','起来','出来','出来','东西','事情','地方','问题','方面','今天','明天','昨天','意思','其中','之一']);
+function extractKeywords(topN = 8) {
+  const full = sentences.map(s => s.text).join('');
+  const segs = full.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+  const counts = new Map();
+  const bump = g => counts.set(g, (counts.get(g) || 0) + 1);
+  for (const seg of segs)
+    for (let n = 2; n <= 4; n++)
+      for (let i = 0; i + n <= seg.length; i++) bump(seg.slice(i, i + n));
+  const wCounts = new Map();
+  for (const w of (full.match(/[A-Za-z][A-Za-z0-9-]{2,}/g) || []))
+    wCounts.set(w, (wCounts.get(w) || 0) + 1);
+  const cands = [];
+  for (const [g, c] of counts) {
+    if (BLACK.has(g)) continue;
+    if (c < 2 && g.length < 3) continue;
+    let bad = 0; for (const ch of g) if (FILLER.includes(ch)) bad++;
+    if (bad >= 2 || (g.length === 2 && bad >= 1 && c < 4)) continue;
+    cands.push({ text: g, count: c, len: g.length });
+  }
+  for (const [w, c] of wCounts) if (c >= 2) cands.push({ text: w, count: c, len: Math.max(2, w.length) });
+  cands.sort((a, b) => b.count * Math.pow(b.len, .85) - a.count * Math.pow(a.len, .85));
+  const chosen = [], occupied = [];
+  const positionsOf = t => { const ps = []; let i = full.indexOf(t); while (i !== -1) { ps.push(i); i = full.indexOf(t, i + 1); } return ps; };
+  for (const c of cands) {
+    const ps = positionsOf(c.text);
+    if (!ps.length) continue;
+    let ov = 0;
+    for (const p of ps) if (occupied.some(([a, b]) => p >= a && p < b)) ov++;
+    if (ov / ps.length > 0.6) continue;
+    chosen.push(c);
+    for (const p of ps) occupied.push([p, p + c.text.length]);
+    if (chosen.length >= topN) break;
+  }
+  return chosen;
+}
+function makeSummary(topN = 3) {
+  const kwList = kws.map(k => k.text);
+  const scored = sentences.map((s, i) => {
+    let sc = 0;
+    kwList.forEach((k, ki) => { if (s.text.includes(k)) sc += (1 - ki * 0.06); });
+    sc = sc / Math.sqrt(Math.max(s.text.replace(/\s/g, '').length, 6));
+    if (i < 2) sc += 0.4;
+    return { s, sc };
+  }).sort((a, b) => b.sc - a.sc);
+  return scored.slice(0, topN).sort((a, b) => a.s.start - b.s.start).map(x => x.s);
+}
+function analyze() {
+  kws = extractKeywords();
+  const summary = makeSummary();
+  const full = sentences.map(s => s.text).join('');
+  const chars = full.replace(/\s/g, '').length;
+  const dur = player.duration || 0;
+  lastStats = { dur, chars, n: sentences.length, speed: dur ? Math.round(chars / dur * 60) : 0 };
+  // 摘要
+  const sm = $('summary'); sm.innerHTML = '';
+  summary.forEach(s => {
+    const d = document.createElement('div'); d.className = 's-item';
+    d.appendChild(document.createElement('i'));
+    const p = document.createElement('p'); p.textContent = s.text;
+    d.appendChild(p); sm.appendChild(d);
+  });
+  // 关键词
+  const row = $('kwRow'); row.innerHTML = '';
+  kws.forEach(k => {
+    const b = document.createElement('button');
+    b.className = 'kw'; b.dataset.kw = k.text;
+    b.innerHTML = ''; b.append(k.text);
+    const sm2 = document.createElement('small'); sm2.textContent = '×' + k.count; b.appendChild(sm2);
+    b.addEventListener('click', () => setKwMark(k.text));
+    row.appendChild(b);
+  });
+  // 统计
+  const g = $('statsGrid'); g.innerHTML = '';
+  const items = [
+    [fmtT(dur), '音频时长'],
+    [chars.toLocaleString(), '转写字数'],
+    [sentences.length, '句子段落'],
+    [lastStats.speed + ' 字/分', '语速估算'],
+  ];
+  items.forEach(([v, l]) => {
+    const d = document.createElement('div'); d.className = 'stat';
+    const b = document.createElement('b'); b.textContent = v;
+    const s = document.createElement('span'); s.textContent = l;
+    d.append(b, s); g.appendChild(d);
+  });
+  // 问答索引
+  buildQAIndex();
+  // 推荐问题
+  fillChips();
+  currentKw = null;
+}
+function setKwMark(kw) {
+  currentKw = (currentKw === kw) ? null : kw;
+  document.querySelectorAll('.kw').forEach(b => b.classList.toggle('on', b.dataset.kw === currentKw));
+  document.querySelectorAll('.t-text').forEach(p => {
+    const raw = p.dataset.raw || '';
+    p.textContent = '';
+    if (!currentKw) { p.textContent = raw; return; }
+    let i = 0;
+    while (true) {
+      const j = raw.indexOf(currentKw, i);
+      if (j === -1) { p.appendChild(document.createTextNode(raw.slice(i))); break; }
+      if (j > i) p.appendChild(document.createTextNode(raw.slice(i, j)));
+      const m = document.createElement('mark'); m.textContent = currentKw;
+      p.appendChild(m); i = j + currentKw.length;
+    }
+  });
+}
+
+/* ---------- 检索式问答 ---------- */
+const QA_STOP = new Set(['我们','你们','他们','自己','这个','那个','什么','怎么','怎样','如何','如果','因为','所以','但是','然后','就是','还是','只是','可以','应该','可能','已经','现在','时候','一个','没有','这些','那些','为什么','关于','内容','音频','录音','里面','提到','说到','讲到','请问','一下','意思','哪些','的话','说的','讲了','还是','还有','以及','是不是','有没有']);
+function tokenize(str) {
+  const out = [];
+  const clean = str.replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+  for (let i = 0; i < clean.length - 1; i++) {
+    const g = clean.slice(i, i + 2);
+    if (!QA_STOP.has(g)) out.push(g);
+  }
+  (str.match(/[A-Za-z0-9]+/g) || []).forEach(w => { if (w.length > 1) out.push(w.toLowerCase()); });
+  return out;
+}
+function buildQAIndex() {
+  const docs = sentences.map(s => tokenize(s.text));
+  const df = new Map();
+  docs.forEach(toks => new Set(toks).forEach(t => df.set(t, (df.get(t) || 0) + 1)));
+  qaIndex = { docs, df, N: sentences.length };
+}
+function tfMap(toks) { const m = {}; toks.forEach(t => m[t] = (m[t] || 0) + 1); return m; }
+function retrieve(q) {
+  const qTok = tokenize(q);
+  if (!qTok.length || !qaIndex) return [];
+  const { docs, df, N } = qaIndex;
+  const idf = t => N > 3 ? Math.log(1 + N / (df.get(t) || 0.5)) : 1;
+  const qm = tfMap(qTok);
+  const qChars = new Set(q.replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, ''));
+  const res = sentences.map((s, i) => {
+    const dm = tfMap(docs[i]);
+    let dot = 0, qn = 0, dn = 0;
+    for (const t in qm) { const w = qm[t] * idf(t); qn += w * w; if (dm[t]) dot += w * dm[t] * idf(t); }
+    for (const t in dm) { const w = dm[t] * idf(t); dn += w * w; }
+    let sc = dot / ((Math.sqrt(qn) * Math.sqrt(dn)) || 1);
+    let hit = 0; qChars.forEach(ch => { if (s.text.includes(ch)) hit++; });
+    sc += 0.06 * hit / Math.max(qChars.size, 1);
+    return { s, sc };
+  }).sort((a, b) => b.sc - a.sc);
+  return res;
+}
+function routeAnswer(q) {
+  const kwHit = kws.some(k => q.includes(k.text));
+  // 时长类
+  if (!kwHit && /多长|多久|时长|几秒|几分钟|多少分钟/.test(q))
+    return { text: `这段音频时长 ${fmtT(lastStats.dur)}，共约 ${lastStats.chars} 字、${lastStats.n} 个句子，平均语速约 ${lastStats.speed} 字/分钟。` };
+  // 摘要类
+  if (!kwHit && /总结|摘要|大意|主要讲|主要说|主要介绍|核心|主题|讲了什么|说了什么|讲了些|内容是什么|大概在讲|整体在讲/.test(q)) {
+    const sum = makeSummary();
+    return { text: '这段音频主要在讲：' + sum.map(s => s.text).join(' ') };
+  }
+  // 位置类
+  if (/结尾|最后|末尾|收尾|开头|开始|一开始/.test(q)) {
+    const isEnd = !/开头|开始|一开始/.test(q);
+    const picked = isEnd ? sentences.slice(-2) : sentences.slice(0, 2);
+    return {
+      text: `音频${isEnd ? '结尾' : '开头'}提到：「` + picked.map(s => s.text).join('」「') + '」',
+      refs: picked.map(s => ({ label: fmtT(s.start), time: s.start })),
+    };
+  }
+  // 通用检索
+  const res = retrieve(q);
+  if (!res.length || res[0].sc < 0.09) {
+    const hint = kws.length ? `也可以围绕「${kws[0].text}」来问，或试试下方的推荐问题。` : '试试下方的推荐问题。';
+    return { text: '我把整段稿子细细找了一遍，暂时没有找到与这个问题直接相关的内容。可以换个问法——' + hint };
+  }
+  const picked = [res[0]];
+  if (res[1] && res[1].sc > res[0].sc * 0.55) picked.push(res[1]);
+  picked.sort((a, b) => a.s.start - b.s.start);
+  return {
+    text: '音频中与此最相关的内容：「' + picked.map(p => p.s.text).join('」「') + '」',
+    refs: picked.map(p => ({ label: fmtT(p.s.start), time: p.s.start })),
+  };
+}
+
+/* ---------- 对话 UI ---------- */
+function addMsg(kind, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + kind;
+  const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = kind === 'user' ? '问' : '答';
+  if (kind === 'user') {
+    const p = document.createElement('p'); p.textContent = text;
+    d.append(tag, p);
+  } else {
+    const body = document.createElement('span'); body.className = 'body';
+    const p = document.createElement('p'); p.className = 'txt'; p.textContent = text;
+    const refs = document.createElement('div'); refs.className = 'refs';
+    body.append(p, refs); d.append(tag, body);
+    d._refs = refs; d._txt = p;
+  }
+  $('chat').appendChild(d);
+  scrollChat();
+  return d;
+}
+function addThinking() {
+  const d = document.createElement('div'); d.className = 'msg bot';
+  const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = '答';
+  const dots = document.createElement('span'); dots.className = 'dots';
+  dots.append(...[0, 1, 2].map(() => document.createElement('i')));
+  d.append(tag, dots);
+  $('chat').appendChild(d); scrollChat();
+  return d;
+}
+function scrollChat() { const c = $('chat'); c.scrollTop = c.scrollHeight; }
+function typeOut(el, text) {
+  return new Promise(res => {
+    let i = 0;
+    const tick = () => {
+      i = Math.min(text.length, i + 2);
+      el.textContent = text.slice(0, i);
+      scrollChat();
+      if (i < text.length) setTimeout(tick, 16); else res();
+    };
+    tick();
+  });
+}
+function renderRefs(msg, refs) {
+  const box = msg._refs;
+  const lb = document.createElement('span'); lb.className = 'refs-label'; lb.textContent = '跳转原文';
+  box.appendChild(lb);
+  refs.forEach(r => {
+    const b = document.createElement('button'); b.className = 'ref'; b.textContent = r.label;
+    b.addEventListener('click', () => seek(r.time));
+    box.appendChild(b);
+  });
+}
+async function ask(q) {
+  if (busy || state !== 'ready') return;
+  q = (q || '').trim();
+  if (!q) return;
+  busy = true; $('qInput').value = '';
+  addMsg('user', q);
+  const th = addThinking();
+  await sleep(650 + Math.random() * 350);
+  th.remove();
+  const ans = routeAnswer(q);
+  const m = addMsg('bot', '');
+  await typeOut(m._txt, ans.text);
+  if (ans.refs && ans.refs.length) renderRefs(m, ans.refs);
+  scrollChat();
+  busy = false;
+}
+function fillChips() {
+  const box = $('chips'); box.innerHTML = '';
+  const qs = ['这段音频主要讲了什么？'];
+  if (kws[0]) qs.push(`关于「${kws[0].text}」，具体说了哪些内容？`);
+  if (kws[1]) qs.push(`「${kws[0].text}」和「${kws[1].text}」有什么关系？`);
+  qs.push('结尾部分提到了什么？');
+  qs.forEach(q => {
+    const b = document.createElement('button'); b.className = 'qchip'; b.textContent = q;
+    b.addEventListener('click', () => ask(q));
+    box.appendChild(b);
+  });
+}
+
+/* ---------- 播放控制 ---------- */
+function togglePlay() {
+  if (!player.src) return;
+  if (player.paused) player.play(); else player.pause();
+}
+function seek(t) {
+  if (!player.duration) return;
+  player.currentTime = Math.min(Math.max(0, t), player.duration - 0.05);
+  if (player.paused) player.play().catch(() => {});
+}
+player.addEventListener('play', () => {
+  $('playBtn').classList.add('playing');
+  $('playIco').hidden = true; $('pauseIco').hidden = false;
+});
+player.addEventListener('pause', () => {
+  $('playBtn').classList.remove('playing');
+  $('playIco').hidden = false; $('pauseIco').hidden = true;
+});
+function findIdx(t) {
+  let lo = 0, hi = sentences.length - 1, r = -1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1;
+    if (t >= sentences[m].start) { r = m; lo = m + 1; } else hi = m - 1;
+  }
+  return r;
+}
+function loop() {
+  if (player.duration) {
+    $('curTc').textContent = fmtT(player.currentTime);
+    drawWave();
+    if (!player.paused && sentences.length) {
+      const idx = findIdx(player.currentTime);
+      if (idx !== curIdx) {
+        const lines = $('transcript').children;
+        if (lines[curIdx]) lines[curIdx].classList.remove('cur');
+        if (lines[idx] && idx > -1) {
+          lines[idx].classList.add('cur');
+          const now = Date.now();
+          if (now - lastScroll > 800) {
+            lastScroll = now;
+            lines[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+        curIdx = idx;
+      }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+$('playBtn').addEventListener('click', togglePlay);
+
+/* ---------- 录音 ---------- */
+let mediaRecorder = null, recChunks = [], recTimer = null, recStart = 0, recStream = null;
+async function startRec() {
+  try {
+    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch { toast('无法访问麦克风，请检查浏览器权限'); return; }
+  recChunks = [];
+  mediaRecorder = new MediaRecorder(recStream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    recStream.getTracks().forEach(t => t.stop());
+    clearInterval(recTimer);
+    const blob = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+    const file = new File([blob], '麦克风录音.webm', { type: blob.type });
+    $('recBox').hidden = true; $('welcome').hidden = false;
+    handleFile(file);
+  };
+  mediaRecorder.start();
+  $('welcome').hidden = true; $('recBox').hidden = false;
+  recStart = Date.now();
+  recTimer = setInterval(() => { $('recTime').textContent = fmtT((Date.now() - recStart) / 1000); }, 300);
+}
+$('recBtn').addEventListener('click', startRec);
+$('stopRecBtn').addEventListener('click', () => mediaRecorder && mediaRecorder.state !== 'inactive' && mediaRecorder.stop());
+
+/* ---------- 拖放与选择 ---------- */
+const dz = $('welcome').querySelector('#dropzone');
+$('pickBtn').addEventListener('click', e => { e.stopPropagation(); $('fileInput').click(); });
+$('recBtn').addEventListener('click', e => e.stopPropagation());
+dz.addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
+['dragover', 'dragenter'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || e.target === document.documentElement) dz.classList.remove('over'); }));
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('over');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && !$('recBox').hidden === false) {}
+  if (f) { $('recBox').hidden = true; handleFile(f); }
+});
+
+/* ---------- 其它控件 ---------- */
+$('resetBtn').addEventListener('click', resetAll);
+function resetAll() {
+  player.pause(); player.removeAttribute('src'); player.load();
+  sentences = []; qaIndex = null; kws = []; curIdx = -1; currentKw = null;
+  buckets = null; waveData = null;
+  $('transcript').innerHTML = '';
+  $('welcome').hidden = false; $('studio').hidden = true;
+  $('transcriptSec').hidden = true; $('procBox').hidden = true;
+  $('analysis').hidden = true; $('qa').hidden = true; $('workflow').hidden = false;
+  $('chat').innerHTML = ''; $('chips').innerHTML = '';
+  $('recBox').hidden = true;
+  state = 'idle';
+}
+$('copyBtn').addEventListener('click', async () => {
+  if (!sentences.length) return;
+  const txt = sentences.map(s => `[${fmtT(s.start)}] ${s.text}`).join('\n');
+  try { await navigator.clipboard.writeText(txt); toast('转写稿已复制到剪贴板'); }
+  catch { toast('复制失败，请手动选择文本复制'); }
+});
+$('sendBtn').addEventListener('click', () => ask($('qInput').value));
+$('qInput').addEventListener('keydown', e => { if (e.key === 'Enter') ask($('qInput').value); });
+$('modelSel').addEventListener('change', () => {
+  if (sentences.length) toast('模型将在下一段音频转写时生效');
+});
+window.addEventListener('resize', sizeWave);
+sizeWave();
+</script>
+</body>
+</html>
+
 
